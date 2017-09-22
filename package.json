@@ -12,7 +12,9 @@
     "circular-json": "^0.3.3",
     "lodash": "^4.17.4"
   },
-  "devDependencies": {},
+  "devDependencies": {
+    "babel-cli": "^6.26.0"
+  },
   "keywords": [
     "twig",
     "ast",

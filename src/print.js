@@ -34,4 +34,4 @@ function print(tok, str = tok.source, prefix = '', isLast = true) {
     tok.children.forEach((c, i) => print(c, str, prefix + (isLast ? '  ' : '│ ' ), i == tok.children.length - 1));
 }
 
-module.exports = { print };
+module.exports = { print, pad };
