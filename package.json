@@ -9,7 +9,6 @@
   "author": "Ambassify <dev@ambassify.com>",
   "license": "MIT",
   "dependencies": {
-    "circular-json": "^0.3.3",
     "lodash": "^4.17.4"
   },
   "devDependencies": {
