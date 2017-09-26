@@ -21,6 +21,8 @@ const NULL = TWIG | mkid();
 
 const OPERATOR = TWIG | mkid();
 
+const FILTER = mkid();
+
 const FUNCTION = VARIABLE | mkid();
 const ARGUMENT_LIST = EXPRESSION_LIST | mkid();
 
@@ -34,7 +36,7 @@ const TAG_CONTROL = TAG | mkid();
 const TAG_ARGUMENT = EXPRESSION | mkid();
 const BLOCK = TEXT | mkid();
 
-const TYPES = {TEXT,TWIG,EXPRESSION,VARIABLE,OBJECT,BLOCK,TAG,TAG_ARGUMENT,OBJECT_PROPERTY,OBJECT_VALUE,STRING,FUNCTION,TAG_OUTPUT,TAG_CONTROL,EXPRESSION_LIST,LITERAL,ARRAY,NUMBER,ARGUMENT_LIST,BOOLEAN,NULL,OPERATOR,BRACKETS};
+const TYPES = {TEXT,TWIG,EXPRESSION,VARIABLE,OBJECT,BLOCK,TAG,TAG_ARGUMENT,OBJECT_PROPERTY,OBJECT_VALUE,STRING,FUNCTION,TAG_OUTPUT,TAG_CONTROL,EXPRESSION_LIST,LITERAL,ARRAY,NUMBER,ARGUMENT_LIST,BOOLEAN,NULL,OPERATOR,BRACKETS,FILTER};
 const NAMES = _invert(TYPES);
 
 const isType = (state, ...types) => _some(types, type => (state & type) == type);
@@ -240,6 +242,21 @@ function matchToken(str, state = TEXT, offset = 0, skip = 0, parentToken = null)
             tok.end = i - 1;
             i -= 1;
 
+        } else if (isType(state, FILTER) && tok.name && cur == '(') {
+            const args = m(ARGUMENT_LIST, i + 1);
+            i = args.end + 1;
+            tok.add(args);
+
+        /**
+         * Read the name of a variable
+         *
+         * Valid variable characters are a-z, 0-9, underscore, dot and dollarsign
+         */
+        } else if (isType(state, FILTER) && !tok.name && !/[a-z0-9_.$]/i.test(cur)) {
+            tok.name = str.substr(tok.start, i - tok.start);
+            tok.end = i - 1;
+            i -= 1;
+
         /**
          * When a name has been set the next invalid character indicates the
          * end of the variable name.
@@ -248,6 +265,10 @@ function matchToken(str, state = TEXT, offset = 0, skip = 0, parentToken = null)
          * symbol which indicates a function.
          */
         } else if (isType(state, VARIABLE) && tok.name && !/[a-z0-9_.$]/i.test(cur)) {
+            tok.end = i - 1;
+            return tok;
+
+        } else if (isType(state, FILTER) && tok.name && !/[a-z0-9_.$]/i.test(cur)) {
             tok.end = i - 1;
             return tok;
 
@@ -351,6 +372,16 @@ function matchToken(str, state = TEXT, offset = 0, skip = 0, parentToken = null)
          */
         } else if (isType(state, EXPRESSION) && cur == '"') {
             const string = m(STRING, i, 1);
+            i = string.end;
+            tok.end = string.end;
+            tok.expr = string;
+            tok.add(string);
+
+        /**
+         * A `|` in an expression statement indicates the start of a filter.
+         */
+        } else if (isType(state, EXPRESSION) && cur == '|') {
+            const string = m(FILTER, i + 1, 0);
             i = string.end;
             tok.end = string.end;
             tok.expr = string;
