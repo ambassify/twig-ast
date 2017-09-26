@@ -499,16 +499,16 @@ function matchToken(str, state = TEXT, offset = 0, skip = 0, parentToken = null)
          * Detect the operator that the expression statement found.
          */
         } else if (isType(state, OPERATOR) && (/[+\-%\/*]/i.test(cur) || ms('++') || ms('--')) ) {
-            const shortOperator = /[+\-%\/*]/i.test(cur);
+            const longOperator = ms('++') || ms('--');
 
-            if (shortOperator) {
-                tok.end = i;
-                tok.value = cur;
+            if (longOperator) {
+                tok.end = i + 1;
+                tok.value = str.substr(i, 2);
                 return tok;
             }
 
-            tok.end = i + 1;
-            tok.value = str.substr(i, 2);
+            tok.end = i;
+            tok.value = cur;
             return tok;
 
         /**
@@ -533,7 +533,7 @@ function matchToken(str, state = TEXT, offset = 0, skip = 0, parentToken = null)
         return tok;
 
     if (tok.parent)
-        console.error('Exit from invalid state ' + names[state] + ' at position ' + i);
+        throw new Error(`Failed to parse template in state ${names[state]} at position ${i}`);
 
     if (state === TEXT)
         tok.add(getLiteral(str, tok, i));
