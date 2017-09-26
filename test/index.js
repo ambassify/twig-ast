@@ -61,4 +61,12 @@ describe('toAST', () => {
             toAST('{{ hello world');
         });
     })
+
+    it('should prevent endless loop on invalid character', () => {
+        assert.throws(() => {
+            toAST(`
+                {% with { manage_var_name: "\\"contentItemUrl\\"" } %} https://dev.ambassify.com/detail/10165?token={{ persona_token(creatorToken, { {% endwith %}
+            `);
+        });
+    })
 });

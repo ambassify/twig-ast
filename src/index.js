@@ -110,6 +110,13 @@ function readUntil(str, chars, offset, condition) {
     return [i - 1, str.substr(offset, i - offset)];
 }
 
+function throwError(str, state, i) {
+    const start = Math.max(0, i - 30);
+    const end = Math.min(i + 30, str.length);
+    const match = JSON.stringify(str.substr(start, i - start) + '*' + str.substr(i, end - i));
+    throw new Error(`Failed to parse template in state ${NAMES[state]} at position ${i}: ${match}`);
+}
+
 function matchToken(str, state = TEXT, offset = 0, skip = 0, parentToken = null) {
     let i = (offset + skip) - 1;
     const chars = Array.isArray(str) ? str : str.split('');
@@ -120,9 +127,17 @@ function matchToken(str, state = TEXT, offset = 0, skip = 0, parentToken = null)
     const ms = seq => matchSequence(chars, seq, i);
     const m = (type, start, _skip) => matchToken(str, type, start, _skip, tok);
 
+    const last = [-1, -1];
     while (typeof i === 'number' && i++ < str.length) {
         const cur = chars[i];
         // console.log(pad(tok.type, 20), pad(tok.name, 15), pad(i, 6), pad(JSON.stringify(cur), 4), JSON.stringify(str.substr(0, i) + '*' + str.substr(i, 10)));
+        if (last[0] == i && last[1] == i) {
+            // Detect whenever parser gets stuck processing a character
+            // This prevents an endless loop
+            throwError(str, state, i);
+        }
+        last.push(i);
+        last.shift();
 
         /**
          * BLOCK is the section enclosed between {% tag %}BLOCK{% endtag %}.
@@ -533,7 +548,7 @@ function matchToken(str, state = TEXT, offset = 0, skip = 0, parentToken = null)
         return tok;
 
     if (tok.parent)
-        throw new Error(`Failed to parse template in state ${NAMES[state]} at position ${i}`);
+        throwError(str, state, i);
 
     if (state === TEXT)
         tok.add(getLiteral(str, tok, i));
