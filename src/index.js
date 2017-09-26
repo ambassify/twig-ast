@@ -58,8 +58,15 @@ class Token {
     }
 
     is(type) {
+        if (typeof type == 'string')
+            return this.type == type;
+
         const id = TYPES[this.type];
         return isType(id, type);
+    }
+
+    get(type) {
+        return this.children.filter(child => child.is(type));
     }
 
     add(token) {
