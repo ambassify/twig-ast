@@ -28,7 +28,7 @@ function print(tok, str = tok.source, prefix = '', isLast = true) {
         data = ` (${data})`;
     const body = JSON.stringify(str.substr(tok.start, tok.end - tok.start + 1)).substr(0, 100);
     const angle = prefix && (isLast ? '└ ' : '├ ');
-    let out = (prefix || '  ') + angle  + tok.type + data;
+    let out = (prefix || '  ') + angle + tok.type + data;
     out = pad(out, treeWidth);
     console.log(out + body);
     tok.children.forEach((c, i) => print(c, str, prefix + (isLast ? '  ' : '│ ' ), i == tok.children.length - 1));

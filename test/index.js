@@ -3,7 +3,7 @@ const assert = require('assert');
 const { toAST } = require('../src');
 
 describe('toAST', () => {
-    it('should generate an AST without errors', () => {
+    it('should generate an AST without errors #1', () => {
         toAST(`
             {% with { manage_var: "hello world" } %}
                 Hello {{planet}}
@@ -11,7 +11,7 @@ describe('toAST', () => {
         `);
     })
 
-    it('should generate an AST without errors', () => {
+    it('should generate an AST without errors #2', () => {
         toAST(`
             <p>{% with { manage_var_name: "ContentItemURL" } %}
                 https://dev.ambassify.com/detail/9961?token={{ persona_token(creatorToken, { orgId: recipient.orgId, id: recipient.id }) }}
@@ -23,7 +23,7 @@ describe('toAST', () => {
         `);
     });
 
-    it('should generate an AST without errors', () => {
+    it('should generate an AST without errors #3', () => {
         toAST(`
             <p>Dear {{profile.givenName}}</p>
 
@@ -58,7 +58,7 @@ describe('toAST', () => {
 
     it('should throw on an invalid template', () => {
         assert.throws(() => {
-            toAST(`{{ hello world`);
+            toAST('{{ hello world');
         });
     })
 });

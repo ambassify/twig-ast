@@ -34,8 +34,8 @@ const TAG_CONTROL = TAG | mkid();
 const TAG_ARGUMENT = EXPRESSION | mkid();
 const BLOCK = TEXT | mkid();
 
-const types = {TEXT,TWIG,EXPRESSION,VARIABLE,OBJECT,BLOCK,TAG,TAG_ARGUMENT,OBJECT_PROPERTY,OBJECT_VALUE,STRING,FUNCTION,TAG_OUTPUT,TAG_CONTROL,EXPRESSION_LIST,LITERAL,ARRAY,NUMBER,ARGUMENT_LIST,BOOLEAN,NULL,OPERATOR,BRACKETS};
-const names = _invert(types);
+const TYPES = {TEXT,TWIG,EXPRESSION,VARIABLE,OBJECT,BLOCK,TAG,TAG_ARGUMENT,OBJECT_PROPERTY,OBJECT_VALUE,STRING,FUNCTION,TAG_OUTPUT,TAG_CONTROL,EXPRESSION_LIST,LITERAL,ARRAY,NUMBER,ARGUMENT_LIST,BOOLEAN,NULL,OPERATOR,BRACKETS};
+const NAMES = _invert(TYPES);
 
 const isType = (state, ...types) => _some(types, type => (state & type) == type);
 const isText = state => isType(state, TEXT);
@@ -43,7 +43,7 @@ const isText = state => isType(state, TEXT);
 class Token {
     constructor(type, start, options) {
         Object.assign(this, options);
-        this.type = names[type];
+        this.type = NAMES[type];
         this.parent = undefined;
         this.source = undefined;
         this.children = [];
@@ -58,7 +58,7 @@ class Token {
     }
 
     is(type) {
-        const id = types[this.type];
+        const id = TYPES[this.type];
         return isType(id, type);
     }
 
@@ -118,7 +118,7 @@ function matchToken(str, state = TEXT, offset = 0, skip = 0, parentToken = null)
     tok.source = str;
 
     const ms = seq => matchSequence(chars, seq, i);
-    const m = (type, start, skip) => matchToken(str, type, start, skip, tok);
+    const m = (type, start, _skip) => matchToken(str, type, start, _skip, tok);
 
     while (typeof i === 'number' && i++ < str.length) {
         const cur = chars[i];
@@ -205,7 +205,7 @@ function matchToken(str, state = TEXT, offset = 0, skip = 0, parentToken = null)
          * and we see a `(` we should consider it as a function call.
          */
         } else if (isType(state, VARIABLE) && tok.name && cur == '(') {
-            tok.type = names[FUNCTION];
+            tok.type = NAMES[FUNCTION];
             const args = m(ARGUMENT_LIST, i + 1);
             i = args.end + 1;
             tok.add(args);
@@ -398,7 +398,7 @@ function matchToken(str, state = TEXT, offset = 0, skip = 0, parentToken = null)
          *
          * Supported: +, -, %, /, *, ++, --
          */
-        } else if (isType(state, EXPRESSION) && (/[+\-%\/*]/i.test(cur) || ms('++') || ms('--')) ) {
+        } else if (isType(state, EXPRESSION) && (/[+\-%/*]/i.test(cur) || ms('++') || ms('--')) ) {
             const operator = m(OPERATOR, i, 0);
             i = operator.end + 1;
             tok.add(operator);
@@ -490,7 +490,7 @@ function matchToken(str, state = TEXT, offset = 0, skip = 0, parentToken = null)
         /**
          * Matches the end of a string, indicated by an unescaped `\"`
          */
-        } else if (isType(state, STRING) && cur == '"' && chars[i-1] != '\\') {
+        } else if (isType(state, STRING) && cur == '"' && chars[i - 1] != '\\') {
             tok.value = JSON.parse(str.substr(tok.start, i - tok.start + 1));
             tok.end = i;
             return tok;
@@ -498,7 +498,7 @@ function matchToken(str, state = TEXT, offset = 0, skip = 0, parentToken = null)
         /**
          * Detect the operator that the expression statement found.
          */
-        } else if (isType(state, OPERATOR) && (/[+\-%\/*]/i.test(cur) || ms('++') || ms('--')) ) {
+        } else if (isType(state, OPERATOR) && (/[+\-%/*]/i.test(cur) || ms('++') || ms('--')) ) {
             const longOperator = ms('++') || ms('--');
 
             if (longOperator) {
@@ -533,7 +533,7 @@ function matchToken(str, state = TEXT, offset = 0, skip = 0, parentToken = null)
         return tok;
 
     if (tok.parent)
-        throw new Error(`Failed to parse template in state ${names[state]} at position ${i}`);
+        throw new Error(`Failed to parse template in state ${NAMES[state]} at position ${i}`);
 
     if (state === TEXT)
         tok.add(getLiteral(str, tok, i));
@@ -544,5 +544,5 @@ function matchToken(str, state = TEXT, offset = 0, skip = 0, parentToken = null)
 module.exports = {
     toAST: (str) => matchToken(str),
     isType,
-    types
+    TYPES
 };

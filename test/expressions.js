@@ -1,9 +1,7 @@
-const _ = require('lodash');
 const assert = require('assert');
 const { take } = require('./utils');
 
 const { toAST } = require('../src');
-const { print } = require('../src/print');
 
 describe('toAST', () => {
 
