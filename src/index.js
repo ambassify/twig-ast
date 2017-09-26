@@ -217,10 +217,8 @@ function matchToken(str, state = TEXT, offset = 0, skip = 0, parentToken = null)
             tok.end = expr.end;
 
             // No expression found
-            if (expr.children.length < 1)
-                return tok;
-
-            tok.add(expr);
+            if (expr.children.length > 0)
+                tok.add(expr);
 
         /**
          * Whenever we are matching a variable for which we know the name

@@ -56,7 +56,13 @@ describe('toAST', () => {
         `);
     })
 
-    it('should throw on an invalid template', () => {
+    it('should throw on an invalid template #1', () => {
+        assert.throws(() => {
+            toAST('{{ hello world }');
+        });
+    })
+
+    it('should throw on an invalid template #2', () => {
         assert.throws(() => {
             toAST('{{ hello world');
         });
