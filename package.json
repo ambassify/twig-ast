@@ -30,5 +30,16 @@
     "syntax",
     "tree",
     "syntax"
-  ]
+  ],
+  "directories": {
+    "test": "test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ambassify/twig-ast.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ambassify/twig-ast/issues"
+  },
+  "homepage": "https://github.com/ambassify/twig-ast#readme"
 }
