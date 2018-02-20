@@ -18,6 +18,7 @@ const STRING = TWIG | mkid();
 const NUMBER = TWIG | mkid();
 const BOOLEAN = TWIG | mkid();
 const NULL = TWIG | mkid();
+const ERROR = TWIG | mkid();
 
 const OPERATOR = TWIG | mkid();
 
@@ -36,7 +37,7 @@ const TAG_CONTROL = TAG | mkid();
 const TAG_ARGUMENT = EXPRESSION | mkid();
 const BLOCK = TEXT | mkid();
 
-const TYPES = {TEXT,TWIG,EXPRESSION,VARIABLE,OBJECT,BLOCK,TAG,TAG_ARGUMENT,OBJECT_PROPERTY,OBJECT_VALUE,STRING,FUNCTION,TAG_OUTPUT,TAG_CONTROL,EXPRESSION_LIST,LITERAL,ARRAY,NUMBER,ARGUMENT_LIST,BOOLEAN,NULL,OPERATOR,BRACKETS,FILTER};
+const TYPES = {TEXT,TWIG,ERROR,EXPRESSION,VARIABLE,OBJECT,BLOCK,TAG,TAG_ARGUMENT,OBJECT_PROPERTY,OBJECT_VALUE,STRING,FUNCTION,TAG_OUTPUT,TAG_CONTROL,EXPRESSION_LIST,LITERAL,ARRAY,NUMBER,ARGUMENT_LIST,BOOLEAN,NULL,OPERATOR,BRACKETS,FILTER};
 const NAMES = _invert(TYPES);
 
 const isType = (state, ...types) => _some(types, type => (state & type) == type);
@@ -72,6 +73,9 @@ class Token {
     }
 
     add(token) {
+        if (!token)
+            return;
+
         this.children.push(token);
     }
 
@@ -93,6 +97,13 @@ function matchSequence(chars, seq, offset) {
 
 function isEmptyChar(c) {
     return /\s/.test(c);
+}
+
+function getError(message = true, loc) {
+    const err = new Token(ERROR, loc);
+    err.end = loc;
+    err.error = message;
+    return err;
 }
 
 function getLiteral(str, tok, i) {
@@ -126,7 +137,7 @@ function throwError(str, state, i) {
     throw new Error(`Failed to parse template in state ${NAMES[state]} at position ${i}: ${match}`);
 }
 
-function matchToken(str, state = TEXT, offset = 0, skip = 0, parentToken = null) {
+function matchToken(config = {}, str, state = TEXT, offset = 0, skip = 0, parentToken = null) {
     let i = (offset + skip) - 1;
     const chars = Array.isArray(str) ? str : str.split('');
     const tok = new Token(state, offset);
@@ -134,7 +145,7 @@ function matchToken(str, state = TEXT, offset = 0, skip = 0, parentToken = null)
     tok.source = str;
 
     const ms = seq => matchSequence(chars, seq, i);
-    const m = (type, start, _skip) => matchToken(str, type, start, _skip, tok);
+    const m = (type, start, _skip) => matchToken(config, str, type, start, _skip, tok);
 
     const last = [-1, -1];
     while (typeof i === 'number' && i++ < str.length) {
@@ -317,6 +328,10 @@ function matchToken(str, state = TEXT, offset = 0, skip = 0, parentToken = null)
              */
             const block = m(BLOCK, i + 2);
             i = tok.closingTag.end;
+
+            if (tok.closingTag.is(ERROR))
+                tok.error = tok.closingTag.error;
+
             tok.end = i;
             tok.closing = false;
             tok.add(block);
@@ -583,8 +598,24 @@ function matchToken(str, state = TEXT, offset = 0, skip = 0, parentToken = null)
     if (isType(state, EXPRESSION))
         return tok;
 
-    if (tok.parent)
-        throwError(str, state, i);
+    if (tok.parent) {
+        if (config.throwSyntaxErrors)
+            throwError(str, state, i);
+
+        let open = tok;
+
+        // find the opening parent
+        while (open && !open.is(TAG_CONTROL))
+            open = open.parent;
+
+        if (open) {
+            const err = getError('unexpected end of input', i);
+            open.closingTag = err;
+            err.openingTag = open;
+        }
+
+        return tok;
+    }
 
     if (state === TEXT)
         tok.add(getLiteral(str, tok, i));
@@ -592,8 +623,15 @@ function matchToken(str, state = TEXT, offset = 0, skip = 0, parentToken = null)
     return tok;
 }
 
+const defaultConfig = {
+    throwSyntaxErrors: true
+};
+
 module.exports = {
-    toAST: (str) => matchToken(str),
+    toAST: (str, options = {}) => {
+        options = Object.assign({}, defaultConfig, options);
+        return matchToken(options, str);
+    },
     isType,
     TYPES
 };
