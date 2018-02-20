@@ -182,6 +182,8 @@ function matchToken(config = {}, str, state = TEXT, offset = 0, skip = 0, parent
                     tag.block = tok;
                 }
 
+                tok.add(getLiteral(str, tok, i));
+
                 tok.end = tag.start - 1;
                 return tok;
             } else {
