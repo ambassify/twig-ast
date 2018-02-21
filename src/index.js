@@ -600,6 +600,9 @@ function matchToken(config = {}, str, state = TEXT, offset = 0, skip = 0, parent
     if (isType(state, EXPRESSION))
         return tok;
 
+    if (isText(state))
+        tok.add(getLiteral(str, tok, i));
+
     if (tok.parent) {
         if (config.throwSyntaxErrors)
             throwError(str, state, i);
@@ -618,9 +621,6 @@ function matchToken(config = {}, str, state = TEXT, offset = 0, skip = 0, parent
 
         return tok;
     }
-
-    if (state === TEXT)
-        tok.add(getLiteral(str, tok, i));
 
     return tok;
 }
