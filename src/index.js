@@ -387,7 +387,7 @@ function matchToken(config = {}, str, state = TEXT, offset = 0, skip = 0, parent
         /**
          * A `"` in an expression statement indicates the start of a string.
          */
-        } else if (isType(state, EXPRESSION) && cur == '"') {
+        } else if (isType(state, EXPRESSION) && (cur == '"' || cur == '\'')) {
             const string = m(STRING, i, 1);
             i = string.end;
             tok.end = string.end;
@@ -558,8 +558,14 @@ function matchToken(config = {}, str, state = TEXT, offset = 0, skip = 0, parent
         /**
          * Matches the end of a string, indicated by an unescaped `\"`
          */
-        } else if (isType(state, STRING) && cur == '"' && chars[i - 1] != '\\') {
-            tok.value = JSON.parse(str.substr(tok.start, i - tok.start + 1));
+        } else if (isType(state, STRING) && cur == chars[tok.start] && chars[i - 1] != '\\') {
+            const value = str.substr(tok.start, i - tok.start + 1);
+            try {
+                tok.value = JSON.parse(value);
+            } catch(e) {
+                tok.value = eval(value);
+            }
+            tok.quote = chars[tok.start];
             tok.end = i;
             return tok;
 
