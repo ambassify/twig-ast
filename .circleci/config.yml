@@ -2,17 +2,16 @@ version: 2
 jobs:
   build:
     docker:
-      - image: circleci/node:latest
+      - image: node:10
     steps:
       - checkout
       - restore_cache:
-          key: twig-ast-{{ checksum "package.json" }}
+          key: dependencies-{{ checksum "package.json" }}
       - run: npm install
       - save_cache:
-          key: twig-ast-{{ checksum "package.json" }}
+          key: dependencies-{{ checksum "package.json" }}-{{ .BuildNum }}
           paths:
             - node_modules
       - run: npm test
       - store_artifacts:
           path: coverage
-
