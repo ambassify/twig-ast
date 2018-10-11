@@ -45,7 +45,8 @@ const isText = state => isType(state, TEXT);
 
 const SELF_CLOSING = ['set'];
 
-const REGEX_OPERATOR = /[+\-%/*=]/i;
+const REGEX_ELSEIF = /^else(if)?$/i;
+const REGEX_OPERATOR = /[+\-%/*=~]/i;
 function isOperator(cur, ms, m, i) {
     if (!REGEX_OPERATOR.test(cur))
         return false;
@@ -146,6 +147,11 @@ function getLiteral(str, tok, i) {
 }
 
 function findOpeningTag(name, tok) {
+    if (REGEX_ELSEIF.test(name))
+        name = 'if';
+    else
+        name = name.replace(/^end/i, '');
+
     while (tok && (!tok.is(TAG_CONTROL) || tok.name != name))
         tok = tok.parent;
 
@@ -206,8 +212,7 @@ function matchToken(config = {}, str, state = TEXT, offset = 0, skip = 0, parent
              * parent open tag.
              */
             if (tag.closing) {
-                const name = tag.name.replace(/^end/, '');
-                const open = findOpeningTag(name, tok);
+                const open = findOpeningTag(tag.name, tok);
 
                 if (open) {
                     open.closingTag = tag;
@@ -349,7 +354,7 @@ function matchToken(config = {}, str, state = TEXT, offset = 0, skip = 0, parent
              * Our current assumption is that control tags starting with
              * and `end` (such as {% endwhile %})
              */
-            if (/^end/.test(tok.name)) {
+            if (/^end|^else(if)?$/.test(tok.name)) {
                 tok.closing = true;
                 return tok;
             }
@@ -365,15 +370,27 @@ function matchToken(config = {}, str, state = TEXT, offset = 0, skip = 0, parent
             if (SELF_CLOSING.indexOf(tok.name) > -1)
                 return tok;
 
-            const block = m(BLOCK, i + 2);
-            i = tok.closingTag.end;
+            i = i + 1;
+            let parentTag = tok;
+            do {
+                const block = m(BLOCK, i + 1);
+
+                if (REGEX_ELSEIF.test(tok.closingTag.name)) {
+                    parentTag.add(block);
+                    parentTag = tok.closingTag;
+                    tok.add(tok.closingTag);
+                } else {
+                    parentTag.add(block);
+                }
+
+                i = tok.closingTag.end;
+            } while(REGEX_ELSEIF.test(tok.closingTag.name));
 
             if (tok.closingTag.is(ERROR))
                 tok.error = tok.closingTag.error;
 
             tok.end = i;
             tok.closing = false;
-            tok.add(block);
             return tok;
 
         /**
