@@ -43,6 +43,21 @@ const NAMES = _invert(TYPES);
 const isType = (state, ...types) => _some(types, type => (state & type) == type);
 const isText = state => isType(state, TEXT);
 
+const SELF_CLOSING = ['set'];
+
+const REGEX_OPERATOR = /[+\-%/*=]/i;
+function isOperator(cur, ms, m, i) {
+    if (!REGEX_OPERATOR.test(cur))
+        return false;
+
+    if (ms('++') || ms('--'))
+        return true;
+
+    const right = m(EXPRESSION, i, 1);
+
+    return !right.error && right.children.length > 0;
+}
+
 class Token {
     constructor(type, start, options) {
         Object.assign(this, options);
@@ -106,6 +121,22 @@ function getError(message = true, loc) {
     return err;
 }
 
+function returnErrorTree(tok, i) {
+    let open = tok;
+
+    // find the opening parent
+    while (open && !open.is(TAG_CONTROL))
+        open = open.parent;
+
+    if (open) {
+        const err = getError('unexpected end of input', i);
+        open.closingTag = err;
+        err.openingTag = open;
+    }
+
+    return tok;
+}
+
 function getLiteral(str, tok, i) {
     const start = (tok.children.slice().pop() || { end: tok.start - 1 }).end + 1;
     const literal = new Token(LITERAL, start);
@@ -154,7 +185,10 @@ function matchToken(config = {}, str, state = TEXT, offset = 0, skip = 0, parent
         if (last[0] == i && last[1] == i) {
             // Detect whenever parser gets stuck processing a character
             // This prevents an endless loop
-            throwError(str, state, i);
+            if (config.throwSyntaxErrors)
+                throwError(str, state, i);
+
+            return returnErrorTree(tok, i);
         }
         last.push(i);
         last.shift();
@@ -324,10 +358,13 @@ function matchToken(config = {}, str, state = TEXT, offset = 0, skip = 0, parent
              * If the tag is not a closing tag, assume that it starts a
              * new BLOCK section.
              *
-             * TODO: This should perform a check on the tag `name` to verify
+             * This should perform a check on the tag `name` to verify
              * that the tag has a BLOCK section and is not self closing.
              * Such as the {% set var = "test" %}
              */
+            if (SELF_CLOSING.indexOf(tok.name) > -1)
+                return tok;
+
             const block = m(BLOCK, i + 2);
             i = tok.closingTag.end;
 
@@ -464,9 +501,9 @@ function matchToken(config = {}, str, state = TEXT, offset = 0, skip = 0, parent
         /**
          * Match against the symbols for operators.
          *
-         * Supported: +, -, %, /, *, ++, --
+         * Supported: +, -, %, /, *, ++, --, =
          */
-        } else if (isType(state, EXPRESSION) && (/[+\-%/*]/i.test(cur) || ms('++') || ms('--')) ) {
+        } else if (isType(state, EXPRESSION) && isOperator(cur, ms, m, i)) {
             const operator = m(OPERATOR, i, 0);
             i = operator.end + 1;
             tok.add(operator);
@@ -572,7 +609,7 @@ function matchToken(config = {}, str, state = TEXT, offset = 0, skip = 0, parent
         /**
          * Detect the operator that the expression statement found.
          */
-        } else if (isType(state, OPERATOR) && (/[+\-%/*]/i.test(cur) || ms('++') || ms('--')) ) {
+        } else if (isType(state, OPERATOR) && (REGEX_OPERATOR.test(cur) || ms('++') || ms('--'))) {
             const longOperator = ms('++') || ms('--');
 
             if (longOperator) {
@@ -613,19 +650,7 @@ function matchToken(config = {}, str, state = TEXT, offset = 0, skip = 0, parent
         if (config.throwSyntaxErrors)
             throwError(str, state, i);
 
-        let open = tok;
-
-        // find the opening parent
-        while (open && !open.is(TAG_CONTROL))
-            open = open.parent;
-
-        if (open) {
-            const err = getError('unexpected end of input', i);
-            open.closingTag = err;
-            err.openingTag = open;
-        }
-
-        return tok;
+        return returnErrorTree(tok, i);
     }
 
     return tok;
