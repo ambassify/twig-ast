@@ -50,6 +50,21 @@ describe('toAST', () => {
             assert.equal(string.type, 'STRING');
             assert.equal(string.quote, '"');
         })
+
+        it('should handle and operator', () => {
+            const ast = toAST(`
+                {% if a and b %}{% endif %}
+            `);
+
+            const operator = take(ast, 1, 0, 1);
+            const varA = take(ast, 1, 0, 0);
+            const varB = take(ast, 1, 0, 2, 0);
+
+            assert.equal(operator.value, 'and');
+            assert.equal(operator.type, 'OPERATOR');
+            assert.equal(varA.name, 'a');
+            assert.equal(varB.name, 'b');
+        })
     })
 
 });

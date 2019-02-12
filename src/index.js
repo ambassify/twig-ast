@@ -47,21 +47,40 @@ const SELF_CLOSING = ['set'];
 
 const REGEX_ELSEIF = /^else(if)?$/i;
 const REGEX_OPERATOR = /[+\-%/*=~]/i;
-function isOperator(cur, ms, m, i) {
-    if (!REGEX_OPERATOR.test(cur))
-        return false;
+function matchOperator(cur, ms, m, i) {
+    // Long operators
+    const len = ['and', 'or', '!=', '=='].reduce((r, o) => ms(o) ? o.length : r, 0);
 
+    if (len > 0) {
+        const right = m(EXPRESSION, i, len);
+
+        if (!right.error && right.children.length > 0)
+            return len;
+    }
+
+    // Shorthands var++, var--
     if (ms('++') || ms('--'))
-        return true;
+        return 2;
 
-    const right = m(EXPRESSION, i, 1);
+    // Regular operator a + b, c - 1
+    if (REGEX_OPERATOR.test(cur)) {
+        const right = m(EXPRESSION, i, 1);
 
-    return !right.error && right.children.length > 0;
+        if (!right.error && right.children.length > 0)
+            return 1;
+    }
+
+    return 0;
+}
+
+function isOperator(cur, ms, m, i) {
+    return matchOperator(cur, ms, m, i) > 0;
 }
 
 class Token {
     constructor(type, start, options) {
         Object.assign(this, options);
+        this.type_id = type;
         this.type = NAMES[type];
         this.parent = undefined;
         this.source = undefined;
@@ -80,8 +99,7 @@ class Token {
         if (typeof type == 'string')
             return this.type == type;
 
-        const id = TYPES[this.type];
-        return isType(id, type);
+        return isType(this.type_id, type);
     }
 
     get(type) {
@@ -167,11 +185,11 @@ function readUntil(str, chars, offset, condition) {
     return [i - 1, str.substr(offset, i - offset)];
 }
 
-function throwError(str, state, i) {
+function throwError(str, state, i, msg) {
     const start = Math.max(0, i - 30);
     const end = Math.min(i + 30, str.length);
     const match = JSON.stringify(str.substr(start, i - start) + '*' + str.substr(i, end - i));
-    throw new Error(`Failed to parse template in state ${NAMES[state]} at position ${i}: ${match}`);
+    throw new Error(`Failed to parse template in state ${NAMES[state]} at position ${i}: ${match}\n${msg}`);
 }
 
 function matchToken(config = {}, str, state = TEXT, offset = 0, skip = 0, parentToken = null) {
@@ -192,7 +210,7 @@ function matchToken(config = {}, str, state = TEXT, offset = 0, skip = 0, parent
             // Detect whenever parser gets stuck processing a character
             // This prevents an endless loop
             if (config.throwSyntaxErrors)
-                throwError(str, state, i);
+                throwError(str, state, i, 'Endless loop detected');
 
             return returnErrorTree(tok, i);
         }
@@ -481,6 +499,23 @@ function matchToken(config = {}, str, state = TEXT, offset = 0, skip = 0, parent
             tok.add(nul);
 
         /**
+         * Match against the symbols for operators.
+         *
+         * Supported: +, -, %, /, *, ++, --, ==, and, or
+         */
+        } else if (isType(state, EXPRESSION) && isOperator(cur, ms, m, i)) {
+            const operator = m(OPERATOR, i, 0);
+            i = operator.end + 1;
+            tok.add(operator);
+
+            const expr = m(EXPRESSION, i);
+            i = expr.end;
+            tok.end = i;
+            tok.add(expr);
+
+            return tok;
+
+        /**
          * If the next character is a-z, $ or underscore we are starting a
          * new variable name or function name.
          */
@@ -514,22 +549,6 @@ function matchToken(config = {}, str, state = TEXT, offset = 0, skip = 0, parent
             tok.end = brackets.end;
             tok.expr = brackets;
             tok.add(brackets);
-
-        /**
-         * Match against the symbols for operators.
-         *
-         * Supported: +, -, %, /, *, ++, --, =
-         */
-        } else if (isType(state, EXPRESSION) && isOperator(cur, ms, m, i)) {
-            const operator = m(OPERATOR, i, 0);
-            i = operator.end + 1;
-            tok.add(operator);
-
-            const expr = m(EXPRESSION, i);
-            i = expr.end;
-            tok.end = i;
-            tok.add(expr);
-            return tok;
 
         /**
          * End character for an OBJECT is `}`
@@ -626,17 +645,11 @@ function matchToken(config = {}, str, state = TEXT, offset = 0, skip = 0, parent
         /**
          * Detect the operator that the expression statement found.
          */
-        } else if (isType(state, OPERATOR) && (REGEX_OPERATOR.test(cur) || ms('++') || ms('--'))) {
-            const longOperator = ms('++') || ms('--');
+        } else if (isType(state, OPERATOR) && isOperator(cur, ms, m, i)) {
+            const operatorLength = matchOperator(cur, ms, m, i);
 
-            if (longOperator) {
-                tok.end = i + 1;
-                tok.value = str.substr(i, 2);
-                return tok;
-            }
-
-            tok.end = i;
-            tok.value = cur;
+            tok.end = i + (operatorLength - 1);
+            tok.value = str.substr(i, operatorLength);
             return tok;
 
         /**
@@ -665,7 +678,7 @@ function matchToken(config = {}, str, state = TEXT, offset = 0, skip = 0, parent
 
     if (tok.parent) {
         if (config.throwSyntaxErrors)
-            throwError(str, state, i);
+            throwError(str, state, i, 'Root node has parent');
 
         return returnErrorTree(tok, i);
     }
