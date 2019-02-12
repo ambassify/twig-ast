@@ -1,0 +1,11 @@
+#!/usr/bin/env node
+/* global process */
+
+const fs = require('fs');
+const { toAST } = require('../src');
+const { print } = require('../src/print');
+
+const str = fs.readFileSync(process.argv[2], 'utf8');
+const throwErrors = parseInt(process.argv[3] || '0', 10);
+
+print(toAST(str, { throwSyntaxErrors: throwErrors }));
