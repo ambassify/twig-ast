@@ -1,6 +1,7 @@
 const _omit = require('lodash/omit');
 const _invert = require('lodash/invert');
 const _some = require('lodash/some');
+const _reduce = require('lodash/reduce');
 
 const mkid = (function(i) {return () => i += (i == 0 ? 1 : i); }(0));
 
@@ -47,9 +48,12 @@ const SELF_CLOSING = ['set'];
 
 const REGEX_ELSEIF = /^else(if)?$/i;
 const REGEX_OPERATOR = /[+\-%/*=~]/i;
+const LONG_OPERATORS = ['and', 'or', '!=', '==', 'in'];
+const UNARY_OPERATORS = ['++', '--', 'is empty', 'is not empty'];
 function matchOperator(cur, ms, m, i) {
+    const matchLongest = (r, o) => ms(o) ? o.length : r;
     // Long operators
-    const len = ['and', 'or', '!=', '=='].reduce((r, o) => ms(o) ? o.length : r, 0);
+    let len = _reduce(LONG_OPERATORS, matchLongest, 0);
 
     if (len > 0) {
         const right = m(EXPRESSION, i, len);
@@ -59,8 +63,9 @@ function matchOperator(cur, ms, m, i) {
     }
 
     // Shorthands var++, var--
-    if (ms('++') || ms('--'))
-        return 2;
+    len = _reduce(UNARY_OPERATORS, matchLongest, 0);
+    if (len > 0)
+        return len;
 
     // Regular operator a + b, c - 1
     if (REGEX_OPERATOR.test(cur)) {
