@@ -204,11 +204,11 @@ function readUntil(str, chars, offset, condition) {
     return [i - 1, str.substr(offset, i - offset)];
 }
 
-function throwError(str, state, i, msg) {
+function buildError(str, state, i, msg) {
     const start = Math.max(0, i - 30);
     const end = Math.min(i + 30, str.length);
     const match = JSON.stringify(str.substr(start, i - start) + '*' + str.substr(i, end - i));
-    throw new Error(`Failed to parse template in state ${NAMES[state]} at position ${i}: ${match}\n${msg}`);
+    return new Error(`Failed to parse template in state ${NAMES[state]} at position ${i}: ${match}\n${msg}`);
 }
 
 function matchToken(config = {}, str, state = TEXT, offset = 0, skip = 0, parentToken = null) {
@@ -226,11 +226,13 @@ function matchToken(config = {}, str, state = TEXT, offset = 0, skip = 0, parent
         const cur = chars[i];
         // console.log(pad(tok.type, 20), pad(tok.name, 15), pad(i, 6), pad(JSON.stringify(cur), 4), JSON.stringify(str.substr(0, i) + '*' + str.substr(i, 10)));
         if (last[0] == i && last[1] == i) {
+            const err = buildError(str, state, i, 'Endless loop detected');
             // Detect whenever parser gets stuck processing a character
             // This prevents an endless loop
             if (config.throwSyntaxErrors)
-                throwError(str, state, i, 'Endless loop detected');
+                throw err;
 
+            tok.error = err;
             return returnErrorTree(tok, i);
         }
         last.push(i);
@@ -305,7 +307,6 @@ function matchToken(config = {}, str, state = TEXT, offset = 0, skip = 0, parent
         } else if (isType(state, TAG_OUTPUT) && !isEmptyChar(cur)) {
             const expr = m(EXPRESSION, i);
             i = expr.end;
-            tok.end = expr.end;
 
             // No expression found
             if (expr.children.length > 0)
@@ -696,9 +697,11 @@ function matchToken(config = {}, str, state = TEXT, offset = 0, skip = 0, parent
         tok.add(getLiteral(str, tok, i));
 
     if (tok.parent) {
+        const err = buildError(str, state, i, 'Root node has parent');
         if (config.throwSyntaxErrors)
-            throwError(str, state, i, 'Root node has parent');
+            throw err;
 
+        tok.error = err;
         return returnErrorTree(tok, i);
     }
 
