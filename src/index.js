@@ -87,8 +87,6 @@ class Token {
         Object.assign(this, options);
         this.type_id = type;
         this.type = NAMES[type];
-        this.parent = undefined;
-        this.source = undefined;
         this.children = [];
 
         this.start = start;
@@ -98,6 +96,22 @@ class Token {
         this.closing = undefined; // Used by TAG_CONTROL to indicate a closing tag
         this.value = undefined; // Used to store parsed values of expressions.
         this.expr = undefined; // Used to hold the specific expressions on EXPRESSION node.
+
+        Object.defineProperty(this, 'source', {
+            value: undefined,
+            enumerable: false,
+            writable: true
+        });
+
+        Object.defineProperty(this, 'parent', {
+            value: undefined,
+            enumerable: false,
+            writable: true
+        });
+    }
+
+    get match() {
+        return this.source.substr(this.start, this.end - this.start + 1);
     }
 
     is(type) {
