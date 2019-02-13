@@ -1,7 +1,5 @@
 const _omit = require('lodash/omit');
 const _invert = require('lodash/invert');
-const _some = require('lodash/some');
-const _reduce = require('lodash/reduce');
 
 const mkid = (function(i) {return () => i += (i == 0 ? 1 : i); }(0));
 
@@ -41,7 +39,7 @@ const BLOCK = TEXT | mkid();
 const TYPES = {TEXT,TWIG,ERROR,EXPRESSION,VARIABLE,OBJECT,BLOCK,TAG,TAG_ARGUMENT,OBJECT_PROPERTY,OBJECT_VALUE,STRING,FUNCTION,TAG_OUTPUT,TAG_CONTROL,EXPRESSION_LIST,LITERAL,ARRAY,NUMBER,ARGUMENT_LIST,BOOLEAN,NULL,OPERATOR,BRACKETS,FILTER};
 const NAMES = _invert(TYPES);
 
-const isType = (state, ...types) => _some(types, type => (state & type) == type);
+const isType = (state, type) => (state & type) == type;
 const isText = state => isType(state, TEXT);
 
 const SELF_CLOSING = ['set'];
@@ -50,10 +48,23 @@ const REGEX_ELSEIF = /^else(if)?$/i;
 const REGEX_OPERATOR = /[+\-%/*=~]/i;
 const LONG_OPERATORS = ['and', 'or', '!=', '==', 'in'];
 const UNARY_OPERATORS = ['++', '--', 'is empty', 'is not empty'];
+function matchLongest(operators, ms) {
+    let idx = operators.length;
+
+    // For-loop is faster than reduce or forEach
+    while(idx-- > 0) {
+        const operator = operators[idx];
+
+        if (ms(operator))
+            return operator.length;
+    }
+
+    return 0;
+}
+
 function matchOperator(cur, ms, m, i) {
-    const matchLongest = (r, o) => ms(o) ? o.length : r;
     // Long operators
-    let len = _reduce(LONG_OPERATORS, matchLongest, 0);
+    let len = matchLongest(LONG_OPERATORS, ms);
 
     if (len > 0) {
         const right = m(EXPRESSION, i, len);
@@ -63,7 +74,7 @@ function matchOperator(cur, ms, m, i) {
     }
 
     // Shorthands var++, var--
-    len = _reduce(UNARY_OPERATORS, matchLongest, 0);
+    len = matchLongest(UNARY_OPERATORS, ms);
     if (len > 0)
         return len;
 
@@ -94,24 +105,16 @@ class Token {
 
         this.name = undefined; // Used by identifiers (object key, variable, ...)
         this.closing = undefined; // Used by TAG_CONTROL to indicate a closing tag
+        this.closingTag = undefined;
         this.value = undefined; // Used to store parsed values of expressions.
         this.expr = undefined; // Used to hold the specific expressions on EXPRESSION node.
 
-        Object.defineProperty(this, 'source', {
-            value: undefined,
-            enumerable: false,
-            writable: true
-        });
-
-        Object.defineProperty(this, 'parent', {
-            value: undefined,
-            enumerable: false,
-            writable: true
-        });
+        this.source = undefined;
+        this.parent = undefined;
     }
 
     get match() {
-        return this.source.substr(this.start, this.end - this.start + 1);
+        return this.source.substring(this.start, this.end + 1);
     }
 
     is(type) {
@@ -135,17 +138,6 @@ class Token {
     toJSON() {
         return _omit(this, 'parent', 'expr');
     }
-}
-
-function matchSequence(chars, seq, offset) {
-    seq = seq.split('');
-    let len = seq.length;
-
-    while (len-- > 0)
-        if (chars[offset + len] != seq[len])
-            return false;
-
-    return true;
 }
 
 function isEmptyChar(c) {
@@ -179,7 +171,7 @@ function getLiteral(str, tok, i) {
     const start = (tok.children.slice().pop() || { end: tok.start - 1 }).end + 1;
     const literal = new Token(LITERAL, start);
     literal.end = i - 1;
-    literal.value = str.substr(literal.start, i - literal.start);
+    literal.value = str.substring(literal.start, i);
     return literal;
 }
 
@@ -198,27 +190,27 @@ function findOpeningTag(name, tok) {
 function readUntil(str, chars, offset, condition) {
     let i = offset;
 
-    while (i < str.length && !condition(chars[i], i, str.substr(offset, i - offset + 1), str))
+    while (i < str.length && !condition(chars[i], i, str.substring(offset, i + 1), str))
         i++;
 
-    return [i - 1, str.substr(offset, i - offset)];
+    return [i - 1, str.substring(offset, i)];
 }
 
 function buildError(str, state, i, msg) {
     const start = Math.max(0, i - 30);
     const end = Math.min(i + 30, str.length);
-    const match = JSON.stringify(str.substr(start, i - start) + '*' + str.substr(i, end - i));
+    const match = JSON.stringify(str.substring(start, i) + '*' + str.substring(i, end));
     return new Error(`Failed to parse template in state ${NAMES[state]} at position ${i}: ${match}\n${msg}`);
 }
 
 function matchToken(config = {}, str, state = TEXT, offset = 0, skip = 0, parentToken = null) {
     let i = (offset + skip) - 1;
-    const chars = Array.isArray(str) ? str : str.split('');
+    const chars = str.split('');
     const tok = new Token(state, offset);
     tok.parent = parentToken;
     tok.source = str;
 
-    const ms = seq => matchSequence(chars, seq, i);
+    const ms = seq => str.substring(i, i + seq.length) == seq;
     const m = (type, start, _skip) => matchToken(config, str, type, start, _skip, tok);
 
     const last = [-1, -1];
@@ -235,8 +227,8 @@ function matchToken(config = {}, str, state = TEXT, offset = 0, skip = 0, parent
             tok.error = err;
             return returnErrorTree(tok, i);
         }
-        last.push(i);
-        last.shift();
+        last[0] = last[1];
+        last[1] = i;
 
         /**
          * BLOCK is the section enclosed between {% tag %}BLOCK{% endtag %}.
@@ -328,7 +320,7 @@ function matchToken(config = {}, str, state = TEXT, offset = 0, skip = 0, parent
          * Valid variable characters are a-z, 0-9, underscore, dot and dollarsign
          */
         } else if (isType(state, VARIABLE) && !tok.name && !/[a-z0-9_.$]/i.test(cur)) {
-            tok.name = str.substr(tok.start, i - tok.start);
+            tok.name = str.substring(tok.start, i);
             tok.end = i - 1;
             i -= 1;
 
@@ -343,7 +335,7 @@ function matchToken(config = {}, str, state = TEXT, offset = 0, skip = 0, parent
          * Valid variable characters are a-z, 0-9, underscore, dot and dollarsign
          */
         } else if (isType(state, FILTER) && !tok.name && !/[a-z0-9_.$]/i.test(cur)) {
-            tok.name = str.substr(tok.start, i - tok.start);
+            tok.name = str.substring(tok.start, i);
             tok.end = i - 1;
             i -= 1;
 
@@ -652,7 +644,7 @@ function matchToken(config = {}, str, state = TEXT, offset = 0, skip = 0, parent
          * Matches the end of a string, indicated by an unescaped `\"`
          */
         } else if (isType(state, STRING) && cur == chars[tok.start] && chars[i - 1] != '\\') {
-            const value = str.substr(tok.start, i - tok.start + 1);
+            const value = str.substring(tok.start, i + 1);
             try {
                 tok.value = JSON.parse(value);
             } catch(e) {
@@ -669,7 +661,7 @@ function matchToken(config = {}, str, state = TEXT, offset = 0, skip = 0, parent
             const operatorLength = matchOperator(cur, ms, m, i);
 
             tok.end = i + (operatorLength - 1);
-            tok.value = str.substr(i, operatorLength);
+            tok.value = str.substring(i, i + operatorLength);
             return tok;
 
         /**
