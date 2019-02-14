@@ -621,9 +621,16 @@ function matchToken(config = {}, str, state = TEXT, offset = 0, skip = 0, parent
          * { name: value }
          */
         } else if (isType(state, OBJECT_PROPERTY) && !tok.name && !isEmptyChar(cur)) {
-            const [ end, name ] = readUntil(str, chars, i, (c) => /[^a-z0-9_]/i.test(c));
-            i = end;
-            tok.name = name;
+            // String with quotes
+            if (/"|'/.test(cur)) {
+                const { end, value } = m(STRING, i, 1);
+                i = end;
+                tok.name = value;
+            } else {
+                const [ end, name ] = readUntil(str, chars, i, (c) => !REGEX_VARIABLE.test(c));
+                i = end;
+                tok.name = name;
+            }
 
         /**
          * If the name is set and we encounter a `:` character, switch to

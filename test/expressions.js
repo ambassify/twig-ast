@@ -30,6 +30,14 @@ describe('toAST', () => {
             assert.equal(string.type, 'STRING');
             assert.equal(string.quote, '"');
         })
+
+        it('should handle strings as object keys', () => {
+            const ast = toAST(`
+                {% set a = { "hello": "world" } %}
+            `);
+
+            assert.equal(take(ast, 1, 0, 2, 0, 0, 'name'), 'hello');
+        })
     })
 
 });
