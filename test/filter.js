@@ -22,6 +22,24 @@ describe('toAST', () => {
             assert.equal(take(ast, 1, 0, 1, 'name'), 'raw');
             assert.equal(take(ast, 1, 0, 1, 0, 0, 0, 'value'), 'test');
         })
+
+        it('should handle space before filter names', () => {
+            const ast = toAST(`
+                Hello {{planet | raw("test")}}
+            `);
+
+            assert.equal(take(ast, 1, 0, 1, 'name'), 'raw');
+            assert.equal(take(ast, 1, 0, 1, 0, 0, 0, 'value'), 'test');
+        })
+
+        it('should handle multiple spaces before filters', () => {
+            const ast = toAST(`
+                Hello {{planet |  raw("test")}}
+            `);
+
+            assert.equal(take(ast, 1, 0, 1, 'name'), 'raw');
+            assert.equal(take(ast, 1, 0, 1, 0, 0, 0, 'value'), 'test');
+        })
     })
 
 });

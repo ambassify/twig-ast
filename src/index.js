@@ -21,7 +21,7 @@ const ERROR = TWIG | mkid();
 
 const OPERATOR = TWIG | mkid();
 
-const FILTER = mkid();
+const FILTER = TWIG | mkid();
 
 const FUNCTION = VARIABLE | mkid();
 const ARGUMENT_LIST = EXPRESSION_LIST | mkid();
@@ -44,8 +44,10 @@ const isText = state => isType(state, TEXT);
 
 const SELF_CLOSING = ['set'];
 
+const REGEX_VARIABLE = /[a-z0-9_.$]/i;
 const REGEX_ELSEIF = /^else(if)?$/i;
 const REGEX_OPERATOR = /[+\-%/*=~]/i;
+
 const LONG_OPERATORS = ['and', 'or', '!=', '==', 'in'];
 const UNARY_OPERATORS = ['++', '--', 'is empty', 'is not empty'];
 function matchLongest(operators, ms) {
@@ -319,7 +321,7 @@ function matchToken(config = {}, str, state = TEXT, offset = 0, skip = 0, parent
          *
          * Valid variable characters are a-z, 0-9, underscore, dot and dollarsign
          */
-        } else if (isType(state, VARIABLE) && !tok.name && !/[a-z0-9_.$]/i.test(cur)) {
+        } else if (isType(state, VARIABLE) && !tok.name && !REGEX_VARIABLE.test(cur)) {
             tok.name = str.substring(tok.start, i);
             tok.end = i - 1;
             i -= 1;
@@ -334,7 +336,7 @@ function matchToken(config = {}, str, state = TEXT, offset = 0, skip = 0, parent
          *
          * Valid variable characters are a-z, 0-9, underscore, dot and dollarsign
          */
-        } else if (isType(state, FILTER) && !tok.name && !/[a-z0-9_.$]/i.test(cur)) {
+        } else if (isType(state, FILTER) && !tok.name && !isEmptyChar(cur) && !REGEX_VARIABLE.test(cur)) {
             tok.name = str.substring(tok.start, i);
             tok.end = i - 1;
             i -= 1;
@@ -346,11 +348,11 @@ function matchToken(config = {}, str, state = TEXT, offset = 0, skip = 0, parent
          * @note this test should always be performed after the check for a '('
          * symbol which indicates a function.
          */
-        } else if (isType(state, VARIABLE) && tok.name && !/[a-z0-9_.$]/i.test(cur)) {
+        } else if (isType(state, VARIABLE) && tok.name && !REGEX_VARIABLE.test(cur)) {
             tok.end = i - 1;
             return tok;
 
-        } else if (isType(state, FILTER) && tok.name && !/[a-z0-9_.$]/i.test(cur)) {
+        } else if (isType(state, FILTER) && tok.name && !REGEX_VARIABLE.test(cur)) {
             tok.end = i - 1;
             return tok;
 
@@ -482,7 +484,9 @@ function matchToken(config = {}, str, state = TEXT, offset = 0, skip = 0, parent
          * A `|` in an expression statement indicates the start of a filter.
          */
         } else if (isType(state, EXPRESSION) && cur == '|') {
-            const string = m(FILTER, i + 1, 0);
+            // Skip spaces between | and name
+            const [ start ] = readUntil(str, chars, i + 1, c => !isEmptyChar(c));
+            const string = m(FILTER, start + 1, 0);
             i = string.end;
             tok.end = string.end;
             tok.expr = string;
