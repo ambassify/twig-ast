@@ -49,4 +49,19 @@ describe('toAST', () => {
 
     })
 
+    it('should handle for loop iterating both keys and values', () => {
+        const ast = toAST(`
+            {% for key, value in array %}
+                Hello Test
+            {% endfor %}
+        `);
+
+        assert.equal(take(ast, 1, 'name'), 'for');
+        assert.equal(take(ast, 1, 0, 0, 'name'), 'key');
+        assert.equal(take(ast, 1, 1, 0, 'name'), 'value');
+        assert.equal(take(ast, 1, 1, 1, 'value'), 'in');
+        assert.equal(take(ast, 1, 1, 2, 0, 'name'), 'array');
+        assert.equal(take(ast, 1, 2, 'type'), 'BLOCK');
+    });
+
 });
