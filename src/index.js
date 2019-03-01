@@ -426,6 +426,17 @@ function matchToken(config = {}, str, state = TEXT, offset = 0, skip = 0, parent
             return tok;
 
         /**
+         * Iterating over keys and values using a for loop allows
+         * for two arguments separated by a comma.
+         *
+         * Example: {% for key, value in array %}
+         */
+        } else if (isType(state, TAG_CONTROL) && cur == ',' && tok.name == 'for' && tok.children.length == 1) {
+            // jump over comma, next argument will be picked up by regular arguments clause
+            i++;
+            continue;
+
+        /**
          * The sequence following the name of a control tag should be the
          * arguments to the tag.
          *
