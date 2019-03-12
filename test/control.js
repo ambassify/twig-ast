@@ -64,4 +64,25 @@ describe('toAST', () => {
         assert.equal(take(ast, 1, 2, 'type'), 'BLOCK');
     });
 
+    it('should handle missing spaces in TAG_CONTROL', () => {
+        /* eslint-disable */
+        const ast = toAST(`
+            {%if fb%}
+            {%set connection = "Facebook account"%}
+            {%else%}
+            {%set connection = email ~ " email account"%}
+            {%endif%}
+        `, { throwSyntaxErrors: false });
+        /* eslint-enable */
+
+        const ifTag = take(ast, 1);
+        const end = take(ifTag, 1, 'start');
+        const tag = ast.source.substring(ifTag.start, end);
+
+        assert.equal(take(ifTag, 'name'), 'if');
+        assert.equal(take(ifTag, 'end'), 174);
+        assert.equal(tag, '{%if fb%}');
+        assert.equal(take(ifTag, 1, 'type'), 'BLOCK');
+    });
+
 });

@@ -212,7 +212,7 @@ function matchToken(config = {}, str, state = TEXT, offset = 0, skip = 0, parent
     tok.parent = parentToken;
     tok.source = str;
 
-    const ms = seq => str.substring(i, i + seq.length) == seq;
+    const ms = (seq, j = i) => str.substring(j, j + seq.length) == seq;
     const m = (type, start, _skip) => matchToken(config, str, type, start, _skip, tok);
 
     const last = [-1, -1];
@@ -361,7 +361,7 @@ function matchToken(config = {}, str, state = TEXT, offset = 0, skip = 0, parent
          * as we see non-empty characters
          */
         } else if (isType(state, TAG_CONTROL) && !tok.name && !isEmptyChar(cur)) {
-            const [ end, name ] = readUntil(str, chars, i, c => isEmptyChar(c));
+            const [ end, name ] = readUntil(str, chars, i, (c, j) => isEmptyChar(c) || ms('%}', j));
 
             i = end;
             tok.name = name;
