@@ -64,7 +64,10 @@ function matchLongest(operators, ms) {
     return 0;
 }
 
-function matchOperator(cur, ms, m, i) {
+function matchOperator(cache, cur, ms, m, i) {
+    if (typeof cache[i] != 'undefined')
+        return cache[i];
+
     // Long operators
     let len = matchLongest(LONG_OPERATORS, ms);
 
@@ -72,27 +75,23 @@ function matchOperator(cur, ms, m, i) {
         const right = m(EXPRESSION, i, len);
 
         if (!right.error && right.children.length > 0)
-            return len;
+            return (cache[i] = len);
     }
 
     // Shorthands var++, var--
     len = matchLongest(UNARY_OPERATORS, ms);
     if (len > 0)
-        return len;
+        return (cache[i] = len);
 
     // Regular operator a + b, c - 1
     if (REGEX_OPERATOR.test(cur)) {
         const right = m(EXPRESSION, i, 1);
 
         if (!right.error && right.children.length > 0)
-            return 1;
+            return (cache[i] = 1);
     }
 
-    return 0;
-}
-
-function isOperator(cur, ms, m, i) {
-    return matchOperator(cur, ms, m, i) > 0;
+    return (cache[i] = 0);
 }
 
 class Token {
@@ -192,7 +191,7 @@ function findOpeningTag(name, tok) {
 function readUntil(str, chars, offset, condition) {
     let i = offset;
 
-    while (i < str.length && !condition(chars[i], i, str.substring(offset, i + 1), str))
+    while (i < str.length && !condition(chars[i], i))
         i++;
 
     return [i - 1, str.substring(offset, i)];
@@ -208,17 +207,23 @@ function buildError(str, state, i, msg) {
 function matchToken(config = {}, str, state = TEXT, offset = 0, skip = 0, parentToken = null) {
     let i = (offset + skip) - 1;
     const chars = str.split('');
+    const { cache } = config;
     const tok = new Token(state, offset);
     tok.parent = parentToken;
     tok.source = str;
 
-    const ms = (seq, j = i) => str.substring(j, j + seq.length) == seq;
+    // matchSequence
+    const ms = (seq, j = i) => str[j] == seq[0] && str.substring(j, j + seq.length) == seq;
+
+    // matchToken
     const m = (type, start, _skip) => matchToken(config, str, type, start, _skip, tok);
+
+    // matchOperator
+    const mo = (j = i) => matchOperator(cache.operator, chars[j], ms, m, j);
 
     const last = [-1, -1];
     while (typeof i === 'number' && i++ < str.length) {
         const cur = chars[i];
-        // console.log(pad(tok.type, 20), pad(tok.name, 15), pad(i, 6), pad(JSON.stringify(cur), 4), JSON.stringify(str.substr(0, i) + '*' + str.substr(i, 10)));
         if (last[0] == i && last[1] == i) {
             const err = buildError(str, state, i, 'Endless loop detected');
             // Detect whenever parser gets stuck processing a character
@@ -530,7 +535,7 @@ function matchToken(config = {}, str, state = TEXT, offset = 0, skip = 0, parent
          *
          * Supported: +, -, %, /, *, ++, --, ==, and, or
          */
-        } else if (isType(state, EXPRESSION) && isOperator(cur, ms, m, i)) {
+        } else if (isType(state, EXPRESSION) && mo() > 0) {
             const operator = m(OPERATOR, i, 0);
             i = operator.end + 1;
             tok.add(operator);
@@ -679,8 +684,8 @@ function matchToken(config = {}, str, state = TEXT, offset = 0, skip = 0, parent
         /**
          * Detect the operator that the expression statement found.
          */
-        } else if (isType(state, OPERATOR) && isOperator(cur, ms, m, i)) {
-            const operatorLength = matchOperator(cur, ms, m, i);
+        } else if (isType(state, OPERATOR) && mo() > 0) {
+            const operatorLength = mo();
 
             tok.end = i + (operatorLength - 1);
             tok.value = str.substring(i, i + operatorLength);
@@ -728,7 +733,12 @@ const defaultConfig = {
 
 module.exports = {
     toAST: (str, options = {}) => {
-        options = Object.assign({}, defaultConfig, options);
+        const context = {
+            cache: {
+                operator: {}
+            }
+        };
+        options = Object.assign(context, defaultConfig, options);
         return matchToken(options, str);
     },
     isType,
