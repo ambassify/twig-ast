@@ -48,17 +48,20 @@ const REGEX_VARIABLE = /[a-z0-9_.$]/i;
 const REGEX_ELSEIF = /^else(if)?$/i;
 const REGEX_OPERATOR = /[+\-%/*=~]/i;
 
-const LONG_OPERATORS = ['and', 'or', '!=', '==', 'in'];
+const LONG_OPERATORS = ['and', 'or', '!=', '==', /^in\b/i];
 const UNARY_OPERATORS = ['++', '--', 'is empty', 'is not empty'];
 function matchLongest(operators, ms) {
     let idx = operators.length;
 
     // For-loop is faster than reduce or forEach
     while(idx-- > 0) {
+
         const operator = operators[idx];
 
-        if (ms(operator))
-            return operator.length;
+        // Regex matches will return the length of the match
+        const len = ms(operator);
+        if (len > 0)
+            return len;
     }
 
     return 0;
@@ -213,7 +216,17 @@ function matchToken(config = {}, str, state = TEXT, offset = 0, skip = 0, parent
     tok.source = str;
 
     // matchSequence
-    const ms = (seq, j = i) => str[j] == seq[0] && str.substring(j, j + seq.length) == seq;
+    const ms = (seq, j = i) => {
+        if (seq instanceof RegExp) {
+            const match = seq.exec(str.substring(j));
+            return match && match[0].length;
+        }
+
+        if (str[j] == seq[0] && str.substring(j, j + seq.length) == seq)
+            return seq.length;
+
+        return false;
+    };
 
     // matchToken
     const m = (type, start, _skip) => matchToken(config, str, type, start, _skip, tok);
