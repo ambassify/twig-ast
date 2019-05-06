@@ -38,6 +38,17 @@ describe('toAST', () => {
 
             assert.equal(take(ast, 1, 0, 2, 0, 0, 'name'), 'hello');
         })
+
+        describe('# regression', () => {
+
+            it('should handle functions starting with in', () => {
+                const ast = toAST('{{include(template_from_string("test"))}}');
+
+                assert.equal(take(ast, 1, 0, 0, 'name'), 'include');
+                assert.equal(take(ast, 1, 0, 0, 0, 0, 0, 'name'), 'template_from_string');
+            });
+
+        })
     })
 
 });
