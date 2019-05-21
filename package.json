@@ -1,6 +1,6 @@
 {
   "name": "twig-ast",
-  "version": "1.6.4",
+  "version": "1.6.5",
   "description": "Parses Twig templates into an AST",
   "main": "dist/index.js",
   "scripts": {
