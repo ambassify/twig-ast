@@ -42,7 +42,7 @@ const NAMES = _invert(TYPES);
 const isType = (state, type) => (state & type) == type;
 const isText = state => isType(state, TEXT);
 
-const SELF_CLOSING = ['set'];
+const SELF_CLOSING = ['set', 'import', 'include'];
 
 const REGEX_VARIABLE = /[a-z0-9_.$]/i;
 const REGEX_ELSEIF = /^else(if)?$/i;
