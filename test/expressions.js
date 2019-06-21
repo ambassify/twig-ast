@@ -39,6 +39,43 @@ describe('toAST', () => {
             assert.equal(take(ast, 1, 0, 2, 0, 0, 'name'), 'hello');
         })
 
+        it('should handle function call without arguments', () => {
+            const ast = toAST(`
+                {{ foo() }}
+            `);
+
+            const fn = take(ast, 1, 0, 0);
+
+            assert.equal(fn.name, 'foo');
+            assert.equal(fn.match, 'foo()');
+        });
+
+        it('should handle function call without arguments and chained properties', () => {
+            const ast = toAST(`
+                {{ foo().bar.test }}
+            `);
+
+            const fn = take(ast, 1, 0, 0);
+
+            assert.equal(fn.name, 'foo');
+            assert.equal(fn.match, 'foo()');
+        });
+
+        it('should handle function call without arguments and chained methods', () => {
+            const ast = toAST(`
+                {{ foo().bar('baz') }}
+            `);
+
+            const fn = take(ast, 1, 0, 0);
+
+            assert.equal(fn.name, 'foo');
+            assert.equal(fn.match, 'foo()');
+
+            const fnBar = take(ast, 1, 0, 1);
+            assert.equal(fnBar.name, 'bar');
+            assert.equal(take(fnBar, 0, 0, 0, 'value'), 'baz');
+        });
+
         describe('# regression', () => {
 
             it('should handle functions starting with in', () => {

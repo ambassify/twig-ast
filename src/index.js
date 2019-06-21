@@ -26,6 +26,8 @@ const FILTER = TWIG | mkid();
 const FUNCTION = VARIABLE | mkid();
 const ARGUMENT_LIST = EXPRESSION_LIST | mkid();
 
+const ACCESS_CHAIN = VARIABLE | mkid();
+
 const OBJECT = TWIG | mkid();
 const OBJECT_PROPERTY = TWIG | mkid();
 const OBJECT_VALUE = EXPRESSION | mkid();
@@ -36,7 +38,7 @@ const TAG_CONTROL = TAG | mkid();
 const TAG_ARGUMENT = EXPRESSION | mkid();
 const BLOCK = TEXT | mkid();
 
-const TYPES = {TEXT,TWIG,ERROR,EXPRESSION,VARIABLE,OBJECT,BLOCK,TAG,TAG_ARGUMENT,OBJECT_PROPERTY,OBJECT_VALUE,STRING,FUNCTION,TAG_OUTPUT,TAG_CONTROL,EXPRESSION_LIST,LITERAL,ARRAY,NUMBER,ARGUMENT_LIST,BOOLEAN,NULL,OPERATOR,BRACKETS,FILTER};
+const TYPES = {TEXT,TWIG,ERROR,EXPRESSION,VARIABLE,OBJECT,BLOCK,TAG,TAG_ARGUMENT,OBJECT_PROPERTY,OBJECT_VALUE,STRING,FUNCTION,TAG_OUTPUT,TAG_CONTROL,EXPRESSION_LIST,LITERAL,ARRAY,NUMBER,ARGUMENT_LIST,BOOLEAN,NULL,OPERATOR,BRACKETS,FILTER,ACCESS_CHAIN};
 const NAMES = _invert(TYPES);
 
 const isType = (state, type) => (state & type) == type;
@@ -44,7 +46,7 @@ const isText = state => isType(state, TEXT);
 
 const SELF_CLOSING = ['set', 'import', 'include'];
 
-const REGEX_VARIABLE = /[a-z0-9_.$]/i;
+const REGEX_VARIABLE = /[a-z0-9_$]/i;
 const REGEX_ELSEIF = /^else(if)?$/i;
 const REGEX_OPERATOR = /[+\-%/*=~]/i;
 
@@ -330,9 +332,11 @@ function matchToken(config = {}, str, state = TEXT, offset = 0, skip = 0, parent
          */
         } else if (isType(state, VARIABLE) && tok.name && cur == '(') {
             tok.type = NAMES[FUNCTION];
-            const args = m(ARGUMENT_LIST, i + 1);
+            const args = m(ARGUMENT_LIST, i, 1);
             i = args.end + 1;
+            tok.end = args.end + 1;
             tok.add(args);
+            return tok;
 
         /**
          * Read the name of a variable
@@ -340,12 +344,12 @@ function matchToken(config = {}, str, state = TEXT, offset = 0, skip = 0, parent
          * Valid variable characters are a-z, 0-9, underscore, dot and dollarsign
          */
         } else if (isType(state, VARIABLE) && !tok.name && !REGEX_VARIABLE.test(cur)) {
-            tok.name = str.substring(tok.start, i);
+            tok.name = str.substring(tok.start + skip, i);
             tok.end = i - 1;
             i -= 1;
 
         } else if (isType(state, FILTER) && tok.name && cur == '(') {
-            const args = m(ARGUMENT_LIST, i + 1);
+            const args = m(ARGUMENT_LIST, i, 1);
             i = args.end + 1;
             tok.add(args);
 
@@ -475,6 +479,12 @@ function matchToken(config = {}, str, state = TEXT, offset = 0, skip = 0, parent
          */
         } else if (isType(state, EXPRESSION_LIST) && (tok.children.length == 0 || cur == ',' )) {
             const expr = m(EXPRESSION, i + (cur == ',' ? 1 : 0), 0);
+
+            if (!expr.expr) {
+                tok.end = i - 1;
+                return tok;
+            }
+
             i = expr.end;
             tok.end = expr.end;
             tok.add(expr);
@@ -574,15 +584,34 @@ function matchToken(config = {}, str, state = TEXT, offset = 0, skip = 0, parent
         /**
          * If the next character is 0-9 or a dot, we matching a number.
          */
-        } else if (isType(state, EXPRESSION) && /[0-9.]/i.test(cur)) {
+        } else if (isType(state, EXPRESSION) && ms(/^([0-9]*\.)?[0-9]+/i)) {
             const integer = new Token(NUMBER, i);
             const [ end, value ] = readUntil(str, chars, i, (c) => !/[0-9.]/i.test(c));
-            integer.value = parseFloat(value, 10);
-            integer.end = end;
-            i = end;
-            tok.end = end;
-            tok.expr = integer;
-            tok.add(integer);
+            integer.value = parseFloat(value);
+
+            if (!isNaN(integer.value)) {
+                integer.end = end;
+                i = end;
+                tok.end = end;
+                tok.expr = integer;
+                tok.add(integer);
+            }
+
+        /**
+         * If the next character is a dot and we are not matching a number,
+         * we must be matching a property access.
+         */
+        } else if (isType(state, EXPRESSION) && cur == '.') {
+            const chain = m(VARIABLE, i, 1);
+
+            if (chain.end > chain.start) {
+                tok.type_id = ACCESS_CHAIN;
+                tok.type = NAMES[ACCESS_CHAIN];
+                i = chain.end;
+                tok.end = chain.end;
+                tok.expr = chain;
+                tok.add(chain);
+            }
 
         /**
          * If the next character is `(`, we are starting a set of brackets
