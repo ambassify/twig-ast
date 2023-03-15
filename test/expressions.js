@@ -76,6 +76,26 @@ describe('toAST', () => {
             assert.equal(take(fnBar, 0, 0, 0, 'value'), 'baz');
         });
 
+        it('should handle for loop with range', () => {
+            const ast = toAST(`
+                {% for idx in variable_1..test %}
+                    {{ idx }},
+                {% endfor %}
+            `);
+
+            const range = take(ast, 1, 0, 2, 0);
+            assert.equal(range.type, 'RANGE');
+
+            assert.equal(range.children.length, 2);
+
+            const [ from, to ] = range.children;
+            assert.equal(from.type, 'EXPRESSION');
+            assert.equal(take(from, 0, 'name'), 'variable_1');
+
+            assert.equal(to.type, 'EXPRESSION');
+            assert.equal(take(to, 0, 'name'), 'test');
+        });
+
         describe('# regression', () => {
 
             it('should handle functions starting with in', () => {

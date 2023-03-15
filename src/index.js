@@ -38,7 +38,9 @@ const TAG_CONTROL = TAG | mkid();
 const TAG_ARGUMENT = EXPRESSION | mkid();
 const BLOCK = TEXT | mkid();
 
-const TYPES = {TEXT,TWIG,ERROR,EXPRESSION,VARIABLE,OBJECT,BLOCK,TAG,TAG_ARGUMENT,OBJECT_PROPERTY,OBJECT_VALUE,STRING,FUNCTION,TAG_OUTPUT,TAG_CONTROL,EXPRESSION_LIST,LITERAL,ARRAY,NUMBER,ARGUMENT_LIST,BOOLEAN,NULL,OPERATOR,BRACKETS,FILTER,ACCESS_CHAIN};
+const RANGE = EXPRESSION | mkid();
+
+const TYPES = {TEXT,TWIG,ERROR,EXPRESSION,VARIABLE,OBJECT,BLOCK,TAG,TAG_ARGUMENT,OBJECT_PROPERTY,OBJECT_VALUE,STRING,FUNCTION,TAG_OUTPUT,TAG_CONTROL,EXPRESSION_LIST,LITERAL,ARRAY,NUMBER,ARGUMENT_LIST,BOOLEAN,NULL,OPERATOR,BRACKETS,FILTER,ACCESS_CHAIN,RANGE};
 const NAMES = _invert(TYPES);
 
 const isType = (state, type) => (state & type) == type;
@@ -598,6 +600,29 @@ function matchToken(config = {}, str, state = TEXT, offset = 0, skip = 0, parent
             }
 
         /**
+         * Matching the left-handside expression of the RANGE expression
+         * This path will be taken when we already detected that we are
+         * reading a RANGE.
+         *
+         */
+        } else if (isType(state, EXPRESSION) && tok.parent.is(RANGE) && ms('..')) {
+            tok.end = i;
+            return tok;
+
+        /**
+         * If an expression is followed by `..` it indicates that we are
+         * currently reading expressions that are part of a RANGE expression.
+         *
+         * Read the RANGE and replace the already read expression with a RANGE.
+         */
+        } else if (isType(state, EXPRESSION) && ms('..')) {
+            const range = m(RANGE, tok.start);
+
+            i = range.end;
+            tok.end = range.end;
+            tok.children = [ range ];
+
+        /**
          * If the next character is a dot and we are not matching a number,
          * we must be matching a property access.
          */
@@ -721,6 +746,19 @@ function matchToken(config = {}, str, state = TEXT, offset = 0, skip = 0, parent
             }
             tok.quote = chars[tok.start];
             tok.end = i;
+            return tok;
+
+        /**
+         * Read range expression
+         * example `from..to`
+         */
+        } else if (isType(state, RANGE)) {
+            const from = m(EXPRESSION, i);
+            const to = m(EXPRESSION, from.end + 2);
+
+            tok.end = to.end;
+            tok.add(from);
+            tok.add(to);
             return tok;
 
         /**
